@@ -34,6 +34,7 @@ public final class SdkTracerProviderBuilder {
   private Sampler sampler = DEFAULT_SAMPLER;
   private ScopeConfiguratorBuilder<TracerConfig> tracerConfiguratorBuilder =
       TracerConfig.configuratorBuilder();
+  private SpanExceptionRenderer spanExceptionRenderer = SpanExceptionRenderer.getDefault();
 
   /**
    * Assign a {@link Clock}. {@link Clock} will be used each time a {@link
@@ -196,6 +197,12 @@ public final class SdkTracerProviderBuilder {
     return this;
   }
 
+  SdkTracerProviderBuilder setSpanExceptionRenderer(
+      SpanExceptionRenderer spanExceptionRenderer) {
+    this.spanExceptionRenderer = spanExceptionRenderer;
+    return this;
+  }
+
   /**
    * Create a new {@link SdkTracerProvider} instance with the configuration.
    *
@@ -209,6 +216,7 @@ public final class SdkTracerProviderBuilder {
         spanLimitsSupplier,
         sampler,
         spanProcessors,
+        spanExceptionRenderer,
         tracerConfiguratorBuilder.build());
   }
 

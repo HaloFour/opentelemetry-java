@@ -56,6 +56,7 @@ final class SdkSpan implements ReadWriteSpan {
   private final AnchoredClock clock;
   // The resource associated with this span.
   private final Resource resource;
+  private final SpanExceptionRenderer spanExceptionRenderer;
   // instrumentation scope of the named tracer which created this span
   private final InstrumentationScopeInfo instrumentationScopeInfo;
   // The start time of the span.
@@ -117,13 +118,6 @@ final class SdkSpan implements ReadWriteSpan {
   @Nullable
   private Thread spanEndingThread;
 
-  private static final AttributeKey<String> EXCEPTION_TYPE =
-      AttributeKey.stringKey("exception.type");
-  private static final AttributeKey<String> EXCEPTION_MESSAGE =
-      AttributeKey.stringKey("exception.message");
-  private static final AttributeKey<String> EXCEPTION_STACKTRACE =
-      AttributeKey.stringKey("exception.stacktrace");
-
   private SdkSpan(
       SpanContext context,
       String name,
@@ -136,6 +130,7 @@ final class SdkSpan implements ReadWriteSpan {
       Resource resource,
       @Nullable AttributesMap attributes,
       @Nullable List<LinkData> links,
+      SpanExceptionRenderer spanExceptionRenderer,
       int totalRecordedLinks,
       long startEpochNanos) {
     this.context = context;
@@ -152,6 +147,7 @@ final class SdkSpan implements ReadWriteSpan {
     this.startEpochNanos = startEpochNanos;
     this.attributes = attributes;
     this.spanLimits = spanLimits;
+    this.spanExceptionRenderer = spanExceptionRenderer;
   }
 
   /**
@@ -180,6 +176,7 @@ final class SdkSpan implements ReadWriteSpan {
       SpanProcessor spanProcessor,
       Clock tracerClock,
       Resource resource,
+      SpanExceptionRenderer spanExceptionRenderer,
       @Nullable AttributesMap attributes,
       @Nullable List<LinkData> links,
       int totalRecordedLinks,
@@ -220,6 +217,7 @@ final class SdkSpan implements ReadWriteSpan {
             resource,
             attributes,
             links,
+            spanExceptionRenderer,
             totalRecordedLinks,
             startEpochNanos);
     // Call onStart here instead of calling in the constructor to make sure the span is completely
@@ -477,24 +475,11 @@ final class SdkSpan implements ReadWriteSpan {
     AttributesMap attributes =
         AttributesMap.create(
             spanLimits.getMaxNumberOfAttributes(), spanLimits.getMaxAttributeValueLength());
-    String exceptionName = exception.getClass().getCanonicalName();
-    String exceptionMessage = exception.getMessage();
-    StringWriter stringWriter = new StringWriter();
-    try (PrintWriter printWriter = new PrintWriter(stringWriter)) {
-      exception.printStackTrace(printWriter);
-    }
-    String stackTrace = stringWriter.toString();
 
-    if (exceptionName != null) {
-      attributes.put(EXCEPTION_TYPE, exceptionName);
+    Attributes exceptionAttributes = spanExceptionRenderer.renderAttributes(exception, additionalAttributes, spanLimits);
+    if (exceptionAttributes != null) {
+      exceptionAttributes.forEach(attributes::put);
     }
-    if (exceptionMessage != null) {
-      attributes.put(EXCEPTION_MESSAGE, exceptionMessage);
-    }
-    if (stackTrace != null) {
-      attributes.put(EXCEPTION_STACKTRACE, stackTrace);
-    }
-
     additionalAttributes.forEach(attributes::put);
 
     addTimedEvent(
